@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Users, Search, UploadCloud,
-  ShieldBan, Settings, LogOut, Sparkles
+  ShieldBan, Settings, LogOut, Sparkles, Send
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -17,6 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'CRM Leads', icon: Users },
+    { id: 'outreach', label: 'Outreach Hub', icon: Send, highlight: true },
     { id: 'discovery', label: 'Internet Discovery', icon: Search },
     { id: 'import-export', label: 'Import & Export', icon: UploadCloud },
     { id: 'suppression', label: 'Suppression List', icon: ShieldBan },
@@ -51,14 +52,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onOpe
                 <button
                   key={item.id}
                   onClick={() => setCurrentTab(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-brand-50 text-brand-700 border-b-2 border-brand-700'
+                      ? 'bg-brand-50 text-brand-700 border-b-2 border-brand-700 font-bold'
+                      : item.highlight
+                      ? 'text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 font-semibold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-brand-600' : 'text-slate-400'}`} />
-                  {item.label}
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-brand-600' : item.highlight ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                  {item.highlight && !isActive && (
+                    <span className="px-1.5 py-0.2 text-[10px] bg-emerald-200 text-emerald-900 font-bold rounded-full">
+                      New
+                    </span>
+                  )}
                 </button>
               );
             })}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, Filter, Download, Columns, Table as TableIcon,
-  Globe, Phone, Mail, ChevronLeft, ChevronRight, Eye, Trash2
+  Globe, Phone, Mail, ChevronLeft, ChevronRight, Eye, Trash2,
+  Send, MessageSquare, Share2
 } from 'lucide-react';
 import { Lead, CRMStage } from '../../types';
 import { api } from '../../services/api';
@@ -289,7 +290,43 @@ export const LeadsView: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Quick Outreach Studio Button */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedLead(l); }}
+                            className="px-2 py-1 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold border border-brand-200 rounded text-[11px] flex items-center gap-1 transition-colors shadow-xs"
+                            title="Open Outreach Studio & Drafts"
+                          >
+                            <Send className="w-3 h-3 text-brand-600" />
+                            <span>Outreach</span>
+                          </button>
+
+                          {/* Quick WhatsApp Link if phone is present */}
+                          {l.public_business_phone && (
+                            <a
+                              href={`https://wa.me/${l.public_business_phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded border border-transparent hover:border-emerald-200 transition-colors"
+                              title={`WhatsApp Chat (${l.public_business_phone})`}
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+
+                          {/* Quick Email Link if email is present */}
+                          {l.general_business_email && (
+                            <a
+                              href={`mailto:${encodeURIComponent(l.general_business_email)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-transparent hover:border-blue-200 transition-colors"
+                              title={`Mail Client (${l.general_business_email})`}
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelectedLead(l); }}
                             className="p-1 text-slate-400 hover:text-brand-700 rounded hover:bg-slate-100"

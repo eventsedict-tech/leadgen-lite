@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Users, UploadCloud, Globe, Award, CheckCircle,
-  Clock, TrendingUp, Search, AlertTriangle
+  Clock, TrendingUp, Search, AlertTriangle, Send
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { DashboardData } from '../../types';
@@ -69,7 +69,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             Real-time B2B discovery, SEO audit analytics, lead scoring, and outreach pipeline.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onNavigate('outreach')}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-1.5"
+          >
+            <Send className="w-4 h-4" />
+            <span>Outreach Hub (Email / WhatsApp / LinkedIn)</span>
+          </button>
           <button
             onClick={() => onNavigate('discovery')}
             className="px-4 py-2 bg-white text-brand-800 hover:bg-blue-50 rounded-lg text-sm font-semibold shadow-sm transition-colors"

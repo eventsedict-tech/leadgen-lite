@@ -7,6 +7,7 @@ import { LeadsView } from './components/leads/LeadsView';
 import { DiscoveryView } from './components/discovery/DiscoveryView';
 import { ImportExportView } from './components/imports/ImportExportView';
 import { SuppressionView } from './components/suppression/SuppressionView';
+import { OutreachView } from './components/outreach/OutreachView';
 import { SettingsView } from './components/settings/SettingsView';
 import { NewLeadModal } from './components/leads/NewLeadModal';
 
@@ -43,6 +44,7 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {currentTab === 'dashboard' && <DashboardView onNavigate={(tab) => setCurrentTab(tab)} />}
         {currentTab === 'leads' && <LeadsView />}
+        {currentTab === 'outreach' && <OutreachView />}
         {currentTab === 'discovery' && <DiscoveryView onNavigateToLeads={() => setCurrentTab('leads')} />}
         {currentTab === 'import-export' && <ImportExportView />}
         {currentTab === 'suppression' && <SuppressionView />}

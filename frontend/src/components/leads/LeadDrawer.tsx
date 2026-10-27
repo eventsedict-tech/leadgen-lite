@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, Globe, Mail, Phone, MapPin, Building,
   Sparkles, Check, Copy, ShieldCheck,
-  RefreshCw, CheckCircle2, Send, ExternalLink, MessageSquare, Share2
+  RefreshCw, CheckCircle2, Send, ExternalLink, MessageSquare, Share2, ArrowRight
 } from 'lucide-react';
 import { Lead, WebsiteAudit, LeadScoreResponse, OutreachDraft, CRMStage, VerificationStatus } from '../../types';
 import { api } from '../../services/api';
@@ -349,7 +349,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
             { id: 'overview', label: 'Overview & CRM' },
             { id: 'audit', label: `SEO Audit (${audits.length})` },
             { id: 'scoring', label: 'Scoring Breakdown' },
-            { id: 'outreach', label: `Drafts (${drafts.length})` },
+            { id: 'outreach', label: `🚀 Outreach Studio (${drafts.length})` },
             { id: 'tasks', label: 'Follow-Up' },
           ].map((tab) => (
             <button
@@ -372,6 +372,83 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
           {/* TAB 1: OVERVIEW & CRM */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
+              {/* Quick Outreach Launchpad */}
+              <div className="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-emerald-50/70 rounded-xl border border-blue-200 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4 text-brand-700" />
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Quick Outreach Actions
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-brand-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                    Email • WhatsApp • LinkedIn
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* Email */}
+                  <button
+                    onClick={() => {
+                      setOutreachChannel('cold_email');
+                      setActiveTab('outreach');
+                    }}
+                    className="p-2.5 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg text-left transition-colors flex items-center justify-between group shadow-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-blue-100 text-blue-700 rounded group-hover:bg-blue-200">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">Email Pitch</div>
+                        <div className="text-[10px] text-slate-500">{currentLead.general_business_email ? 'Email listed' : 'No email'}</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                  </button>
+
+                  {/* WhatsApp */}
+                  <button
+                    onClick={() => {
+                      setOutreachChannel('whatsapp_draft');
+                      setActiveTab('outreach');
+                    }}
+                    className="p-2.5 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-lg text-left transition-colors flex items-center justify-between group shadow-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded group-hover:bg-emerald-200">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">WhatsApp</div>
+                        <div className="text-[10px] text-slate-500">{currentLead.public_business_phone ? 'Phone listed' : 'No phone'}</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600" />
+                  </button>
+
+                  {/* LinkedIn */}
+                  <button
+                    onClick={() => {
+                      setOutreachChannel('linkedin_note');
+                      setActiveTab('outreach');
+                    }}
+                    className="p-2.5 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg text-left transition-colors flex items-center justify-between group shadow-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-[#0a66c2]/10 text-[#0a66c2] rounded group-hover:bg-[#0a66c2]/20">
+                        <Share2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">LinkedIn Note</div>
+                        <div className="text-[10px] text-slate-500">&lt;295 chars note</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0a66c2]" />
+                  </button>
+                </div>
+              </div>
+
               {/* CRM Stage Selector */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
@@ -773,9 +850,64 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
                   Generated Drafts ({drafts.length})
                 </h4>
                 {drafts.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-6 text-center">
-                    No drafts generated yet. Choose a channel and language above.
-                  </p>
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-3">
+                    <Sparkles className="w-6 h-6 text-brand-600 mx-auto" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      No outreach pitches generated for this lead yet.
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Click any channel below to generate an instant personalized pitch with verifiable evidence:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 max-w-lg mx-auto">
+                      <button
+                        onClick={async () => {
+                          setOutreachChannel('cold_email');
+                          setLoadingDraft(true);
+                          try {
+                            const draft = await api.generateOutreach(lead.id, 'cold_email', outreachLang);
+                            setDrafts([draft, ...drafts]);
+                          } catch (err: any) { alert(err.message); }
+                          finally { setLoadingDraft(false); }
+                        }}
+                        className="p-2 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Cold Email</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setOutreachChannel('whatsapp_draft');
+                          setLoadingDraft(true);
+                          try {
+                            const draft = await api.generateOutreach(lead.id, 'whatsapp_draft', outreachLang);
+                            setDrafts([draft, ...drafts]);
+                          } catch (err: any) { alert(err.message); }
+                          finally { setLoadingDraft(false); }
+                        }}
+                        className="p-2 bg-white hover:bg-emerald-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WhatsApp</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setOutreachChannel('linkedin_note');
+                          setLoadingDraft(true);
+                          try {
+                            const draft = await api.generateOutreach(lead.id, 'linkedin_note', outreachLang);
+                            setDrafts([draft, ...drafts]);
+                          } catch (err: any) { alert(err.message); }
+                          finally { setLoadingDraft(false); }
+                        }}
+                        className="p-2 bg-white hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-[#0a66c2]" />
+                        <span>LinkedIn Note</span>
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   drafts.map((d) => (
                     <div key={d.id} className="p-4 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-sm">
