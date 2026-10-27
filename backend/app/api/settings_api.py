@@ -106,7 +106,7 @@ def save_integration(
         # Merge existing secrets if masked string was sent back unchanged
         existing_cfg = json.loads(rec.config_json) if rec.config_json else {}
         for k, v in req.config.items():
-            if str(v).endswith("...") or "..." in str(v):
+            if v is None or v == "" or str(v).endswith("...") or "..." in str(v):
                 # Retain existing secret
                 continue
             existing_cfg[k] = v
@@ -143,22 +143,45 @@ class TestEmailRequest(BaseModel):
 @router.post("/test-email")
 async def test_smtp_connection(
     req: TestEmailRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     import smtplib
     import ssl
     import httpx
     from email.mime.text import MIMEText
 
+    # Determine Resend API Key: from request, or resolve from saved DB config if masked/empty
+    resend_key = req.resend_api_key.strip() if req.resend_api_key else None
+    if not resend_key or "..." in resend_key:
+        smtp_rec = db.query(ProviderIntegration).filter(
+            ProviderIntegration.organization_id == current_user.organization_id,
+            ProviderIntegration.provider_type == "smtp"
+        ).first()
+        if smtp_rec and smtp_rec.config_json:
+            try:
+                saved_cfg = json.loads(smtp_rec.config_json)
+                saved_key = saved_cfg.get("resend_api_key")
+                if saved_key and "..." not in str(saved_key):
+                    resend_key = str(saved_key).strip()
+            except Exception:
+                pass
+
     # Test HTTP-based Resend API (Port 443 - never blocked on Render)
-    if req.resend_api_key:
+    if resend_key:
+        if not resend_key.startswith("re_"):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid Resend API Key format. A valid Resend key must start with 're_' (e.g. re_abc123...). Please copy your API key from https://resend.com/api-keys."
+            )
+
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
                 from_addr = req.from_email if (req.from_email and "@" in req.from_email and not req.from_email.endswith("@gmail.com")) else "onboarding@resend.dev"
                 res = await client.post(
                     "https://api.resend.com/emails",
                     headers={
-                        "Authorization": f"Bearer {req.resend_api_key}",
+                        "Authorization": f"Bearer {resend_key}",
                         "Content-Type": "application/json"
                     },
                     json={
@@ -170,34 +193,75 @@ async def test_smtp_connection(
                 )
                 if res.status_code in (200, 201):
                     return {"success": True, "message": f"Test email sent successfully via Resend API to {req.test_recipient}!"}
+                elif res.status_code == 401:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Resend API Key is invalid or expired (401 Unauthorized). Please generate or copy the full API key starting with 're_' from https://resend.com/api-keys and save it."
+                    )
+                elif res.status_code == 403:
+                    try:
+                        err_msg = res.json().get("message", res.text)
+                    except Exception:
+                        err_msg = res.text
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Resend Free Tier rule: {err_msg}. Note: On Resend free tier with onboarding@resend.dev, you can only send test emails to your registered Resend account email address."
+                    )
                 else:
-                    raise HTTPException(status_code=400, detail=f"Resend API error: {res.text}")
+                    try:
+                        err_msg = res.json().get("message", res.text)
+                    except Exception:
+                        err_msg = res.text
+                    raise HTTPException(status_code=400, detail=f"Resend API error ({res.status_code}): {err_msg}")
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to connect to Resend API: {str(e)}")
 
-    if not req.host or not req.user or not req.password:
-        raise HTTPException(status_code=400, detail="Please enter SMTP Host, User, and Password, or enter a Resend API Key.")
+    # Fallback to SMTP: resolve password from DB if masked or empty
+    smtp_host = req.host
+    smtp_user = req.user
+    smtp_pass = req.password
+
+    if not smtp_pass or "..." in smtp_pass or not smtp_host or not smtp_user:
+        smtp_rec = db.query(ProviderIntegration).filter(
+            ProviderIntegration.organization_id == current_user.organization_id,
+            ProviderIntegration.provider_type == "smtp"
+        ).first()
+        if smtp_rec and smtp_rec.config_json:
+            try:
+                saved_cfg = json.loads(smtp_rec.config_json)
+                smtp_host = smtp_host or saved_cfg.get("host")
+                smtp_user = smtp_user or saved_cfg.get("user")
+                if not smtp_pass or "..." in smtp_pass:
+                    smtp_pass = saved_cfg.get("password")
+            except Exception:
+                pass
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid Resend API Key (starts with re_), or enter SMTP Host, User, and Password."
+        )
 
     # Test traditional SMTP socket
     try:
         msg = MIMEText("This is a verified test email from LeadGen Lite Outreach Engine.", "plain", "utf-8")
         msg["Subject"] = "LeadGen Lite: SMTP Configuration Test"
-        msg["From"] = req.from_email or req.user
+        msg["From"] = req.from_email or smtp_user
         msg["To"] = req.test_recipient
 
         if req.port == 465:
             context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(req.host, req.port, context=context, timeout=8.0) as server:
-                server.login(req.user, req.password)
+            with smtplib.SMTP_SSL(smtp_host, req.port, context=context, timeout=8.0) as server:
+                server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
         else:
-            with smtplib.SMTP(req.host, req.port, timeout=8.0) as server:
+            with smtplib.SMTP(smtp_host, req.port, timeout=8.0) as server:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
-                server.login(req.user, req.password)
+                server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
 
         return {"success": True, "message": f"Test email sent successfully to {req.test_recipient}!"}
@@ -207,7 +271,7 @@ async def test_smtp_connection(
             err_msg = (
                 "Render Free Tier blocks outbound SMTP ports (587, 465, 25). "
                 "To send emails: (1) Use the 1-Click 'Mail App' button in Lead Drawer to send directly via Gmail from your device, "
-                "or (2) enter a free Resend API Key below which sends over HTTPS (Port 443)."
+                "or (2) enter a free Resend API Key above which sends over HTTPS (Port 443)."
             )
         else:
             err_msg = err_str

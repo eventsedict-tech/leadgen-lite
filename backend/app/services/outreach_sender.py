@@ -114,11 +114,11 @@ async def send_email_outreach(
     status_mode = "simulated"
     error_detail = None
 
-    resend_key = smtp_cfg.get("resend_api_key")
+    resend_key = str(smtp_cfg.get("resend_api_key") or "").strip()
 
-    if resend_key:
+    if resend_key and "..." not in resend_key and resend_key.startswith("re_"):
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
                 res = await client.post(
                     "https://api.resend.com/emails",
                     headers={
@@ -135,7 +135,10 @@ async def send_email_outreach(
                 if res.status_code in (200, 201):
                     status_mode = "resend_api_sent"
                 else:
-                    error_detail = res.text
+                    try:
+                        error_detail = res.json().get("message", res.text)
+                    except Exception:
+                        error_detail = res.text
                     status_mode = "resend_api_failed"
         except Exception as e:
             error_detail = str(e)

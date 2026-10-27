@@ -16,6 +16,8 @@ export const SettingsView: React.FC = () => {
   const [smtpPassword, setSmtpPassword] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
   const [resendApiKey, setResendApiKey] = useState('');
+  const [isResendSaved, setIsResendSaved] = useState(false);
+  const [isSmtpPassSaved, setIsSmtpPassSaved] = useState(false);
 
   // Form states for WhatsApp
   const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
@@ -49,9 +51,11 @@ export const SettingsView: React.FC = () => {
           setSmtpHost(item.masked_config?.host || '');
           setSmtpPort(item.masked_config?.port || '587');
           setSmtpUser(item.masked_config?.user || '');
-          setSmtpPassword(item.masked_config?.password || '');
           setSmtpFrom(item.masked_config?.from_email || '');
-          setResendApiKey(item.masked_config?.resend_api_key || '');
+          setIsSmtpPassSaved(Boolean(item.masked_config?.password));
+          setSmtpPassword(''); // Never populate with masked value to avoid sending invalid key
+          setIsResendSaved(Boolean(item.masked_config?.resend_api_key));
+          setResendApiKey(''); // Never populate with masked value to avoid sending invalid key
         } else if (item.provider_type === 'whatsapp') {
           setWhatsappPhoneId(item.masked_config?.phone_number_id || '');
           setWhatsappToken(item.masked_config?.access_token || '');
@@ -73,8 +77,24 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const handleSaveEmailConfig = () => {
+    const configPayload: any = {
+      host: smtpHost,
+      port: smtpPort,
+      user: smtpUser,
+      from_email: smtpFrom
+    };
+    if (smtpPassword.trim()) {
+      configPayload.password = smtpPassword.trim();
+    }
+    if (resendApiKey.trim()) {
+      configPayload.resend_api_key = resendApiKey.trim();
+    }
+    handleSaveIntegration('smtp', Boolean(smtpHost || resendApiKey.trim() || isResendSaved), configPayload);
+  };
+
   const handleTestSmtp = async () => {
-    if (!testEmailRecipient) {
+    if (!testEmailRecipient.trim()) {
       alert('Please enter a destination email address to test the email dispatch.');
       return;
     }
@@ -85,10 +105,10 @@ export const SettingsView: React.FC = () => {
         host: smtpHost || undefined,
         port: Number(smtpPort) || 587,
         user: smtpUser || undefined,
-        password: smtpPassword || undefined,
+        password: smtpPassword.trim() || undefined,
         from_email: smtpFrom || smtpUser || undefined,
-        test_recipient: testEmailRecipient,
-        resend_api_key: resendApiKey || undefined
+        test_recipient: testEmailRecipient.trim(),
+        resend_api_key: resendApiKey.trim() || undefined
       });
       setTestResult(res.message);
     } catch (err: any) {
@@ -220,24 +240,36 @@ export const SettingsView: React.FC = () => {
             {/* Resend API Key */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-800 text-[11px]">Resend API Key (Recommended for Render):</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-800 text-[11px]">Resend API Key (Recommended for Render):</span>
+                  {isResendSaved && (
+                    <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
+                      ✓ Saved & Active
+                    </span>
+                  )}
+                </div>
                 <a
-                  href="https://resend.com"
+                  href="https://resend.com/api-keys"
                   target="_blank"
                   rel="noreferrer"
                   className="text-[10px] text-brand-700 hover:underline flex items-center gap-0.5 font-medium"
                 >
-                  <span>Get Free Key (resend.com)</span>
+                  <span>Get Free Key (resend.com/api-keys)</span>
                   <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </div>
               <input
                 type="password"
-                placeholder="Enter Resend API Key (re_...)"
+                placeholder={isResendSaved ? "•••••••••••••••• (Key is saved. Enter new key only to replace)" : "Enter Resend API Key (starts with re_...)"}
                 value={resendApiKey}
                 onChange={(e) => setResendApiKey(e.target.value)}
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:ring-1 focus:ring-brand-500"
               />
+              {resendApiKey && !resendApiKey.startsWith('re_') && (
+                <p className="text-[10px] text-amber-600 font-medium">
+                  Notice: Resend API keys always begin with <code>re_</code> (e.g. re_abc123...). Please verify your key from resend.com.
+                </p>
+              )}
             </div>
 
             {/* Traditional SMTP (For Local / VPS / Dedicated) */}
@@ -274,7 +306,7 @@ export const SettingsView: React.FC = () => {
                 />
                 <input
                   type="password"
-                  placeholder="SMTP App Password"
+                  placeholder={isSmtpPassSaved ? "•••••••• (Password saved. Enter only to replace)" : "SMTP App Password"}
                   value={smtpPassword}
                   onChange={(e) => setSmtpPassword(e.target.value)}
                   className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
@@ -284,14 +316,7 @@ export const SettingsView: React.FC = () => {
 
             <div className="flex gap-2 pt-1">
               <button
-                onClick={() => handleSaveIntegration('smtp', Boolean(smtpHost || resendApiKey), {
-                  host: smtpHost,
-                  port: smtpPort,
-                  user: smtpUser,
-                  password: smtpPassword,
-                  from_email: smtpFrom,
-                  resend_api_key: resendApiKey
-                })}
+                onClick={handleSaveEmailConfig}
                 className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold transition-colors"
               >
                 Save Email Configuration
@@ -300,7 +325,10 @@ export const SettingsView: React.FC = () => {
 
             {/* Test Email Handshake */}
             <div className="pt-2 border-t border-slate-200 space-y-1.5">
-              <div className="text-[11px] font-bold text-slate-700">Test Email Connection (SMTP / Resend API)</div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700">Test Email Connection (SMTP / Resend API)</span>
+                <span className="text-[10px] text-slate-500">(For Resend free tier, enter your registered Resend account email)</span>
+              </div>
               <div className="flex gap-2">
                 <input
                   type="email"
