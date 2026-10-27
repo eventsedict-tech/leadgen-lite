@@ -131,23 +131,56 @@ def save_integration(
 
 
 class TestEmailRequest(BaseModel):
-    host: str
+    host: Optional[str] = None
     port: int = 587
-    user: str
-    password: str
-    from_email: str
+    user: Optional[str] = None
+    password: Optional[str] = None
+    from_email: Optional[str] = None
     test_recipient: str
+    resend_api_key: Optional[str] = None
 
 
 @router.post("/test-email")
-def test_smtp_connection(
+async def test_smtp_connection(
     req: TestEmailRequest,
     current_user: User = Depends(get_current_user)
 ):
     import smtplib
     import ssl
+    import httpx
     from email.mime.text import MIMEText
 
+    # Test HTTP-based Resend API (Port 443 - never blocked on Render)
+    if req.resend_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                from_addr = req.from_email if (req.from_email and "@" in req.from_email and not req.from_email.endswith("@gmail.com")) else "onboarding@resend.dev"
+                res = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {req.resend_api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "from": from_addr,
+                        "to": [req.test_recipient],
+                        "subject": "LeadGen Lite: Resend API Test",
+                        "text": "This is a verified test email sent via Resend HTTP API over Port 443."
+                    }
+                )
+                if res.status_code in (200, 201):
+                    return {"success": True, "message": f"Test email sent successfully via Resend API to {req.test_recipient}!"}
+                else:
+                    raise HTTPException(status_code=400, detail=f"Resend API error: {res.text}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to connect to Resend API: {str(e)}")
+
+    if not req.host or not req.user or not req.password:
+        raise HTTPException(status_code=400, detail="Please enter SMTP Host, User, and Password, or enter a Resend API Key.")
+
+    # Test traditional SMTP socket
     try:
         msg = MIMEText("This is a verified test email from LeadGen Lite Outreach Engine.", "plain", "utf-8")
         msg["Subject"] = "LeadGen Lite: SMTP Configuration Test"
@@ -156,11 +189,11 @@ def test_smtp_connection(
 
         if req.port == 465:
             context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(req.host, req.port, context=context, timeout=10.0) as server:
+            with smtplib.SMTP_SSL(req.host, req.port, context=context, timeout=8.0) as server:
                 server.login(req.user, req.password)
                 server.send_message(msg)
         else:
-            with smtplib.SMTP(req.host, req.port, timeout=10.0) as server:
+            with smtplib.SMTP(req.host, req.port, timeout=8.0) as server:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
@@ -169,4 +202,13 @@ def test_smtp_connection(
 
         return {"success": True, "message": f"Test email sent successfully to {req.test_recipient}!"}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"SMTP handshake failed: {str(e)}")
+        err_str = str(e)
+        if "101" in err_str or "unreachable" in err_str.lower():
+            err_msg = (
+                "Render Free Tier blocks outbound SMTP ports (587, 465, 25). "
+                "To send emails: (1) Use the 1-Click 'Mail App' button in Lead Drawer to send directly via Gmail from your device, "
+                "or (2) enter a free Resend API Key below which sends over HTTPS (Port 443)."
+            )
+        else:
+            err_msg = err_str
+        raise HTTPException(status_code=400, detail=f"SMTP handshake failed: {err_msg}")

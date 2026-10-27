@@ -31,7 +31,8 @@ def get_smtp_config(db: Session, organization_id: int) -> Dict[str, Any]:
                 "port": int(cfg.get("port") or settings.SMTP_PORT or 587),
                 "user": cfg.get("user") or settings.SMTP_USER,
                 "password": cfg.get("password") or settings.SMTP_PASSWORD,
-                "from_email": cfg.get("from_email") or settings.SMTP_FROM_EMAIL or cfg.get("user")
+                "from_email": cfg.get("from_email") or settings.SMTP_FROM_EMAIL or cfg.get("user"),
+                "resend_api_key": cfg.get("resend_api_key")
             }
         except Exception:
             pass
@@ -41,7 +42,8 @@ def get_smtp_config(db: Session, organization_id: int) -> Dict[str, Any]:
         "port": settings.SMTP_PORT,
         "user": settings.SMTP_USER,
         "password": settings.SMTP_PASSWORD,
-        "from_email": settings.SMTP_FROM_EMAIL or settings.SMTP_USER
+        "from_email": settings.SMTP_FROM_EMAIL or settings.SMTP_USER,
+        "resend_api_key": None
     }
 
 
@@ -112,7 +114,34 @@ async def send_email_outreach(
     status_mode = "simulated"
     error_detail = None
 
-    if host and user_name and password:
+    resend_key = smtp_cfg.get("resend_api_key")
+
+    if resend_key:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {resend_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "from": from_email if ("@" in from_email and not from_email.endswith("@gmail.com")) else "onboarding@resend.dev",
+                        "to": [to_email],
+                        "subject": subject,
+                        "text": message_body
+                    }
+                )
+                if res.status_code in (200, 201):
+                    status_mode = "resend_api_sent"
+                else:
+                    error_detail = res.text
+                    status_mode = "resend_api_failed"
+        except Exception as e:
+            error_detail = str(e)
+            status_mode = "resend_api_failed"
+
+    elif host and user_name and password:
         try:
             msg = MIMEMultipart()
             msg["From"] = from_email
@@ -135,7 +164,11 @@ async def send_email_outreach(
 
             status_mode = "smtp_sent"
         except Exception as e:
-            error_detail = str(e)
+            err_str = str(e)
+            if "101" in err_str or "unreachable" in err_str.lower():
+                error_detail = "Render Free Tier blocks outbound SMTP ports (25/465/587). Please use the 1-Click 'Mail App' button in Lead Drawer to send directly via Gmail, or connect a Resend API Key over HTTPS."
+            else:
+                error_detail = err_str
             status_mode = "smtp_failed"
     else:
         status_mode = "simulated_no_smtp_configured"
@@ -173,14 +206,25 @@ async def send_email_outreach(
     # Generate mailto: link for manual 1-click client opening
     mailto_url = f"mailto:{urllib.parse.quote(to_email)}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(message_body)}"
 
+    if status_mode == "smtp_sent":
+        msg_text = "Email sent successfully via SMTP!"
+    elif status_mode == "resend_api_sent":
+        msg_text = "Email sent successfully via Resend API (HTTPS)!"
+    elif status_mode == "smtp_failed":
+        msg_text = f"SMTP failed: {error_detail}"
+    elif status_mode == "resend_api_failed":
+        msg_text = f"Resend API failed: {error_detail}"
+    else:
+        msg_text = "Outreach logged in CRM. Use the Mail App button to send via your local email client."
+
     return {
-        "success": status_mode in ("smtp_sent", "simulated_no_smtp_configured"),
+        "success": status_mode in ("smtp_sent", "resend_api_sent", "simulated_no_smtp_configured"),
         "mode": status_mode,
         "recipient": to_email,
         "subject": subject,
         "mailto_url": mailto_url,
         "error": error_detail,
-        "message": "Email sent successfully via SMTP!" if status_mode == "smtp_sent" else "Outreach logged in CRM. (Configure SMTP in Settings for direct SMTP dispatch, or click mailto to send via your local email client)."
+        "message": msg_text
     }
 
 

@@ -9,12 +9,13 @@ export const SettingsView: React.FC = () => {
   const [googlePlacesKey, setGooglePlacesKey] = useState('');
   const [searchApiKey, setSearchApiKey] = useState('');
 
-  // Form states for SMTP
+  // Form states for SMTP & Resend
   const [smtpHost, setSmtpHost] = useState('');
   const [smtpPort, setSmtpPort] = useState('587');
   const [smtpUser, setSmtpUser] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
+  const [resendApiKey, setResendApiKey] = useState('');
 
   // Form states for WhatsApp
   const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
@@ -50,6 +51,7 @@ export const SettingsView: React.FC = () => {
           setSmtpUser(item.masked_config?.user || '');
           setSmtpPassword(item.masked_config?.password || '');
           setSmtpFrom(item.masked_config?.from_email || '');
+          setResendApiKey(item.masked_config?.resend_api_key || '');
         } else if (item.provider_type === 'whatsapp') {
           setWhatsappPhoneId(item.masked_config?.phone_number_id || '');
           setWhatsappToken(item.masked_config?.access_token || '');
@@ -73,23 +75,24 @@ export const SettingsView: React.FC = () => {
 
   const handleTestSmtp = async () => {
     if (!testEmailRecipient) {
-      alert('Please enter a destination email address to test the SMTP handshake.');
+      alert('Please enter a destination email address to test the email dispatch.');
       return;
     }
     setTestingSmtp(true);
     setTestResult(null);
     try {
       const res = await api.testSmtp({
-        host: smtpHost,
+        host: smtpHost || undefined,
         port: Number(smtpPort) || 587,
-        user: smtpUser,
-        password: smtpPassword,
-        from_email: smtpFrom || smtpUser,
-        test_recipient: testEmailRecipient
+        user: smtpUser || undefined,
+        password: smtpPassword || undefined,
+        from_email: smtpFrom || smtpUser || undefined,
+        test_recipient: testEmailRecipient,
+        resend_api_key: resendApiKey || undefined
       });
       setTestResult(res.message);
     } catch (err: any) {
-      alert(err.message || 'SMTP handshake failed');
+      alert(err.message || 'Email test failed');
     } finally {
       setTestingSmtp(false);
     }
@@ -194,63 +197,110 @@ export const SettingsView: React.FC = () => {
           <span>Authorized Outreach Sending Gateways</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* SMTP */}
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 text-xs">
-            <div className="font-bold text-slate-900">Custom Email SMTP Gateway</div>
-            <p className="text-[11px] text-slate-500">
-              Connect authorized corporate email / SendGrid / Amazon SES credentials with compliant daily limits.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                placeholder="SMTP Host (e.g. smtp.sendgrid.net)"
-                value={smtpHost}
-                onChange={(e) => setSmtpHost(e.target.value)}
-                className="col-span-2 px-2.5 py-1.5 bg-white border border-slate-300 rounded"
-              />
-              <input
-                type="text"
-                placeholder="Port (587)"
-                value={smtpPort}
-                onChange={(e) => setSmtpPort(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
-              />
-              <input
-                type="text"
-                placeholder="From Email"
-                value={smtpFrom}
-                onChange={(e) => setSmtpFrom(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
-              />
-              <input
-                type="text"
-                placeholder="SMTP User"
-                value={smtpUser}
-                onChange={(e) => setSmtpUser(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
-              />
+          {/* Email Outreach: Resend API + SMTP */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <span>Email Outreach Gateway</span>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                Resend API + SMTP
+              </span>
+            </div>
+
+            {/* Cloud Network Notice for Render Free Tier */}
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-[11px] leading-relaxed">
+              <strong>Render Cloud Tip:</strong> Render Free Tier blocks outbound SMTP ports (587, 465, 25) with <code>[Errno 101] Network is unreachable</code> to prevent spam.
+              <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                <li><strong>Option 1 (Instant & Free):</strong> Use the <strong>Mail App</strong> button on any lead to open Gmail directly from your device with zero setup.</li>
+                <li><strong>Option 2 (Cloud Automated):</strong> Enter a free <strong>Resend API Key</strong> below (3,000 emails/mo free over HTTPS Port 443 — works everywhere on Render).</li>
+              </ul>
+            </div>
+
+            {/* Resend API Key */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 text-[11px]">Resend API Key (Recommended for Render):</span>
+                <a
+                  href="https://resend.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] text-brand-700 hover:underline flex items-center gap-0.5 font-medium"
+                >
+                  <span>Get Free Key (resend.com)</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
               <input
                 type="password"
-                placeholder="SMTP Password"
-                value={smtpPassword}
-                onChange={(e) => setSmtpPassword(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                placeholder="Enter Resend API Key (re_...)"
+                value={resendApiKey}
+                onChange={(e) => setResendApiKey(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:ring-1 focus:ring-brand-500"
               />
             </div>
-            <div className="flex gap-2">
+
+            {/* Traditional SMTP (For Local / VPS / Dedicated) */}
+            <div className="pt-2 border-t border-slate-200 space-y-2">
+              <span className="font-semibold text-slate-800 text-[11px]">Or Custom SMTP Gateway (Local / Dedicated):</span>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="SMTP Host (e.g. smtp.gmail.com)"
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                  className="col-span-2 px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="Port (587)"
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="From Email"
+                  value={smtpFrom}
+                  onChange={(e) => setSmtpFrom(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="SMTP User"
+                  value={smtpUser}
+                  onChange={(e) => setSmtpUser(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                />
+                <input
+                  type="password"
+                  placeholder="SMTP App Password"
+                  value={smtpPassword}
+                  onChange={(e) => setSmtpPassword(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
               <button
-                onClick={() => handleSaveIntegration('smtp', Boolean(smtpHost), {
-                  host: smtpHost, port: smtpPort, user: smtpUser, password: smtpPassword, from_email: smtpFrom
+                onClick={() => handleSaveIntegration('smtp', Boolean(smtpHost || resendApiKey), {
+                  host: smtpHost,
+                  port: smtpPort,
+                  user: smtpUser,
+                  password: smtpPassword,
+                  from_email: smtpFrom,
+                  resend_api_key: resendApiKey
                 })}
                 className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold transition-colors"
               >
-                Save SMTP Configuration
+                Save Email Configuration
               </button>
             </div>
 
-            {/* Test SMTP Handshake */}
+            {/* Test Email Handshake */}
             <div className="pt-2 border-t border-slate-200 space-y-1.5">
-              <div className="text-[11px] font-bold text-slate-700">Test SMTP Handshake</div>
+              <div className="text-[11px] font-bold text-slate-700">Test Email Connection (SMTP / Resend API)</div>
               <div className="flex gap-2">
                 <input
                   type="email"

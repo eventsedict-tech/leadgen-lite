@@ -188,7 +188,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
       setCurrentLead(updatedLead);
       loadDrafts();
       onLeadUpdated();
-      if (res.mode !== 'smtp_sent' && res.link) {
+      if (res.mode !== 'smtp_sent' && res.mode !== 'resend_api_sent' && res.link) {
         window.location.href = res.link;
       }
     } catch (err: any) {
@@ -197,6 +197,28 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
       setDispatchingDraftId(null);
       setTimeout(() => setActionMessage(null), 4000);
     }
+  };
+
+  const handleOpenMailApp = async (draft: OutreachDraft) => {
+    try {
+      await api.sendEmailOutreach(
+        lead.id,
+        draft.subject_line || `Partnership Opportunity for ${currentLead.company_name}`,
+        draft.message_body,
+        currentLead.general_business_email || undefined,
+        draft.id
+      );
+      setActionMessage("Opened local mail client & recorded contact in CRM!");
+      const updatedLead = await api.getLead(lead.id);
+      setCurrentLead(updatedLead);
+      loadDrafts();
+      onLeadUpdated();
+    } catch {
+      // Non-blocking fallback
+    }
+    const mailto = `mailto:${encodeURIComponent(currentLead.general_business_email || '')}?subject=${encodeURIComponent(draft.subject_line || '')}&body=${encodeURIComponent(draft.message_body)}`;
+    window.location.href = mailto;
+    setTimeout(() => setActionMessage(null), 4000);
   };
 
   const handleSendWhatsApp = async (draft: OutreachDraft) => {
@@ -827,15 +849,16 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
                                 className="px-3 py-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
                               >
                                 <Send className="w-3.5 h-3.5" />
-                                <span>{dispatchingDraftId === d.id ? 'Sending...' : 'Send Email (SMTP)'}</span>
+                                <span>{dispatchingDraftId === d.id ? 'Sending...' : 'Send (Resend / SMTP)'}</span>
                               </button>
-                              <a
-                                href={`mailto:${encodeURIComponent(currentLead.general_business_email || '')}?subject=${encodeURIComponent(d.subject_line || '')}&body=${encodeURIComponent(d.message_body)}`}
+                              <button
+                                onClick={() => handleOpenMailApp(d)}
                                 className="px-2.5 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                                title="Open in Gmail / Outlook on your device (100% Free, zero setup)"
                               >
                                 <ExternalLink className="w-3 h-3" />
                                 <span>Mail App</span>
-                              </a>
+                              </button>
                             </>
                           )}
 

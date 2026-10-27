@@ -163,12 +163,13 @@ def get_channels_status(
     smtp_cfg = get_smtp_config(db, current_user.organization_id)
     wa_cfg = get_whatsapp_config(db, current_user.organization_id)
     
-    has_smtp = bool(smtp_cfg.get("host") and smtp_cfg.get("user") and smtp_cfg.get("password"))
+    has_smtp = bool(smtp_cfg.get("host") and smtp_cfg.get("user") and smtp_cfg.get("password")) or bool(smtp_cfg.get("resend_api_key"))
     has_wa_api = bool(wa_cfg.get("phone_number_id") and wa_cfg.get("access_token"))
+    host_display = smtp_cfg.get("host") or ("Resend API (HTTPS)" if smtp_cfg.get("resend_api_key") else None)
     
     return OutreachChannelStatusResponse(
         email_smtp_ready=has_smtp,
-        email_smtp_host=smtp_cfg.get("host") if has_smtp else None,
+        email_smtp_host=host_display,
         whatsapp_api_ready=has_wa_api,
         whatsapp_web_ready=True,
         linkedin_ready=True
