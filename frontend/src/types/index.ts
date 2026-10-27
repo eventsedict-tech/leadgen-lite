@@ -147,6 +147,23 @@ export interface OutreachDraft {
   created_at: string;
 }
 
+export interface OutreachActionResponse {
+  success: boolean;
+  mode: string;
+  message: string;
+  recipient?: string | null;
+  link?: string | null;
+  error?: string | null;
+}
+
+export interface OutreachChannelStatus {
+  email_smtp_ready: boolean;
+  email_smtp_host?: string | null;
+  whatsapp_api_ready: boolean;
+  whatsapp_web_ready: boolean;
+  linkedin_ready: boolean;
+}
+
 export interface FollowUpTask {
   id: number;
   lead_id: number;

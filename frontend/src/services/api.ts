@@ -1,7 +1,8 @@
 import {
   AuthToken, User, Lead, LeadListResponse, WebsiteAudit,
   LeadScoreResponse, OutreachDraft, FollowUpTask, SuppressionItem,
-  ProviderInfo, DiscoveredCompany, DashboardData
+  ProviderInfo, DiscoveredCompany, DashboardData,
+  OutreachActionResponse, OutreachChannelStatus
 } from '../types';
 
 const API_BASE = '/api';
@@ -156,6 +157,54 @@ export const api = {
 
   async deleteDraft(draftId: number): Promise<void> {
     return request<void>(`/outreach/drafts/${draftId}`, { method: 'DELETE' });
+  },
+
+  async getOutreachChannelStatus(): Promise<OutreachChannelStatus> {
+    return request<OutreachChannelStatus>('/outreach/channels/status');
+  },
+
+  async sendEmailOutreach(leadId: number, subject: string, messageBody: string, recipientEmail?: string, draftId?: number): Promise<OutreachActionResponse> {
+    return request<OutreachActionResponse>('/outreach/send/email', {
+      method: 'POST',
+      body: JSON.stringify({
+        lead_id: leadId,
+        draft_id: draftId,
+        recipient_email: recipientEmail,
+        subject,
+        message_body: messageBody
+      })
+    });
+  },
+
+  async sendWhatsAppOutreach(leadId: number, messageBody: string, recipientPhone?: string, draftId?: number): Promise<OutreachActionResponse> {
+    return request<OutreachActionResponse>('/outreach/send/whatsapp', {
+      method: 'POST',
+      body: JSON.stringify({
+        lead_id: leadId,
+        draft_id: draftId,
+        recipient_phone: recipientPhone,
+        message_body: messageBody
+      })
+    });
+  },
+
+  async sendLinkedInOutreach(leadId: number, messageBody: string, actionType: string = 'connection_note', draftId?: number): Promise<OutreachActionResponse> {
+    return request<OutreachActionResponse>('/outreach/send/linkedin', {
+      method: 'POST',
+      body: JSON.stringify({
+        lead_id: leadId,
+        draft_id: draftId,
+        action_type: actionType,
+        message_body: messageBody
+      })
+    });
+  },
+
+  async testSmtp(payload: any): Promise<any> {
+    return request<any>('/settings/test-email', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   // Discovery

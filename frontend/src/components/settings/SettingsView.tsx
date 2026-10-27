@@ -20,6 +20,11 @@ export const SettingsView: React.FC = () => {
   const [whatsappPhoneId, setWhatsappPhoneId] = useState('');
   const [whatsappToken, setWhatsappToken] = useState('');
 
+  // Test Email state
+  const [testEmailRecipient, setTestEmailRecipient] = useState('');
+  const [testingSmtp, setTestingSmtp] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
   // Scoring Weights
   const [weightIndustry, setWeightIndustry] = useState(25);
   const [weightWebsite, setWeightWebsite] = useState(25);
@@ -63,6 +68,30 @@ export const SettingsView: React.FC = () => {
       loadSettings();
     } catch (err: any) {
       alert(err.message || 'Failed to save integration');
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    if (!testEmailRecipient) {
+      alert('Please enter a destination email address to test the SMTP handshake.');
+      return;
+    }
+    setTestingSmtp(true);
+    setTestResult(null);
+    try {
+      const res = await api.testSmtp({
+        host: smtpHost,
+        port: Number(smtpPort) || 587,
+        user: smtpUser,
+        password: smtpPassword,
+        from_email: smtpFrom || smtpUser,
+        test_recipient: testEmailRecipient
+      });
+      setTestResult(res.message);
+    } catch (err: any) {
+      alert(err.message || 'SMTP handshake failed');
+    } finally {
+      setTestingSmtp(false);
     }
   };
 
@@ -208,21 +237,48 @@ export const SettingsView: React.FC = () => {
                 className="px-2.5 py-1.5 bg-white border border-slate-300 rounded"
               />
             </div>
-            <button
-              onClick={() => handleSaveIntegration('smtp', Boolean(smtpHost), {
-                host: smtpHost, port: smtpPort, user: smtpUser, password: smtpPassword, from_email: smtpFrom
-              })}
-              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold transition-colors"
-            >
-              Save SMTP Configuration
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSaveIntegration('smtp', Boolean(smtpHost), {
+                  host: smtpHost, port: smtpPort, user: smtpUser, password: smtpPassword, from_email: smtpFrom
+                })}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold transition-colors"
+              >
+                Save SMTP Configuration
+              </button>
+            </div>
+
+            {/* Test SMTP Handshake */}
+            <div className="pt-2 border-t border-slate-200 space-y-1.5">
+              <div className="text-[11px] font-bold text-slate-700">Test SMTP Handshake</div>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="Enter destination test email"
+                  value={testEmailRecipient}
+                  onChange={(e) => setTestEmailRecipient(e.target.value)}
+                  className="flex-1 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestSmtp}
+                  disabled={testingSmtp}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded text-xs font-semibold disabled:opacity-50"
+                >
+                  {testingSmtp ? 'Testing...' : 'Send Test'}
+                </button>
+              </div>
+              {testResult && (
+                <p className="text-[11px] text-emerald-700 font-medium bg-emerald-50 p-1.5 rounded">{testResult}</p>
+              )}
+            </div>
           </div>
 
           {/* WhatsApp */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 text-xs">
-            <div className="font-bold text-slate-900">WhatsApp Business Cloud API</div>
+            <div className="font-bold text-slate-900">WhatsApp Business Cloud API & Web Chat</div>
             <p className="text-[11px] text-slate-500">
-              Official Meta WhatsApp Cloud API credentials for approved template messaging with opt-in verification.
+              Direct Click-to-Chat (wa.me) works out-of-the-box for all verified phone numbers. For automated template messaging, connect official Meta Cloud API credentials.
             </p>
             <input
               type="text"
@@ -246,6 +302,22 @@ export const SettingsView: React.FC = () => {
             >
               Save WhatsApp Credentials
             </button>
+          </div>
+
+          {/* LinkedIn Integration Info */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                <span>LinkedIn Outreach Integration (Direct Profile & Deep Search)</span>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                100% Ready (Zero Setup Required)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Generates compliant connection request notes strictly under 295 characters (fitting LinkedIn's 300-char limit) and InMail pitches. In the Lead Drawer, clicking <strong>Copy Pitch & Open LinkedIn</strong> automatically copies the message, opens the prospect's profile/search on LinkedIn in a new tab, marks the lead stage as <strong>Contacted</strong>, and schedules an automatic 3-day follow-up reminder.
+            </p>
           </div>
         </div>
       </div>

@@ -104,3 +104,73 @@ def test_outreach_generation_english_and_hindi(client):
     }, headers=headers)
     assert wa_draft.status_code == 200
     assert "व्हाट्सएप" in wa_draft.json()["suggested_next_action"] or "नमस्ते" in wa_draft.json()["message_body"]
+
+
+def test_outreach_dispatch_integrations(client):
+    reg = client.post("/api/auth/register", json={
+        "email": "dispatch_tester@test.com",
+        "password": "Password123!",
+        "full_name": "Dispatch Agent",
+        "organization_name": "Multi Channel Outreach Org"
+    })
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    lead_res = client.post("/api/leads", json={
+        "company_name": "Zenith Marketing Tech",
+        "official_website": "https://zenithmarketing.tech",
+        "industry": "Marketing",
+        "city": "Bengaluru",
+        "public_business_phone": "+91-91234-56789",
+        "general_business_email": "hello@zenithmarketing.tech",
+        "publicly_listed_contact_name": "Priya Nair"
+    }, headers=headers)
+    lead_id = lead_res.json()["id"]
+
+    # 1. Channels status
+    status_res = client.get("/api/outreach/channels/status", headers=headers)
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert "email_smtp_ready" in status_data
+    assert status_data["whatsapp_web_ready"] is True
+    assert status_data["linkedin_ready"] is True
+
+    # 2. Email Outreach Dispatch
+    email_res = client.post("/api/outreach/send/email", json={
+        "lead_id": lead_id,
+        "subject": "Quick intro for Zenith Marketing",
+        "message_body": "Hi Priya, hope all is well."
+    }, headers=headers)
+    assert email_res.status_code == 200, f"Error: {email_res.status_code} - {email_res.text}"
+    assert email_res.json()["success"] is True
+    assert "mailto:" in email_res.json()["link"]
+
+    # Check lead updated to Contacted
+    updated_lead = client.get(f"/api/leads/{lead_id}", headers=headers).json()
+    assert updated_lead["crm_status"] == "Contacted"
+
+    # 3. WhatsApp Outreach Dispatch
+    wa_res = client.post("/api/outreach/send/whatsapp", json={
+        "lead_id": lead_id,
+        "message_body": "Hello Priya, greetings from our team."
+    }, headers=headers)
+    assert wa_res.status_code == 200
+    assert wa_res.json()["success"] is True
+    assert "wa.me" in wa_res.json()["link"]
+    assert "919123456789" in wa_res.json()["link"]
+
+    # 4. LinkedIn Outreach Dispatch
+    li_res = client.post("/api/outreach/send/linkedin", json={
+        "lead_id": lead_id,
+        "action_type": "connection_note",
+        "message_body": "Hi Priya, loved your work at Zenith Marketing!"
+    }, headers=headers)
+    assert li_res.status_code == 200, f"Error: {li_res.status_code} - {li_res.text}"
+    assert li_res.json()["success"] is True
+    assert "linkedin.com" in li_res.json()["link"]
+
+    # Check that a follow-up task was scheduled
+    tasks_res = client.get(f"/api/tasks?lead_id={lead_id}", headers=headers)
+    assert tasks_res.status_code == 200
+    assert len(tasks_res.json()) >= 1
+    assert "LinkedIn" in tasks_res.json()[0]["title"]

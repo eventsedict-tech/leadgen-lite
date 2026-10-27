@@ -6,9 +6,15 @@ from app.core.database import get_db
 from app.models.models import User, Lead, WebsiteAudit, OutreachDraft, Campaign, CampaignRecipient, AuditLog
 from app.schemas.outreach import (
     GenerateOutreachRequest, OutreachDraftResponse, UpdateDraftRequest,
-    CreateCampaignRequest, CampaignResponse
+    CreateCampaignRequest, CampaignResponse,
+    SendEmailRequest, SendWhatsAppRequest, SendLinkedInRequest,
+    OutreachActionResponse, OutreachChannelStatusResponse
 )
 from app.services.message_generator import generate_outreach_draft_template, call_optional_llm
+from app.services.outreach_sender import (
+    send_email_outreach, send_whatsapp_outreach, send_linkedin_outreach,
+    get_smtp_config, get_whatsapp_config
+)
 from app.services.deduplication import check_is_suppressed
 from app.api.deps import get_current_user
 
@@ -147,3 +153,132 @@ def delete_draft(
     db.delete(draft)
     db.commit()
     return None
+
+
+@router.get("/channels/status", response_model=OutreachChannelStatusResponse)
+def get_channels_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    smtp_cfg = get_smtp_config(db, current_user.organization_id)
+    wa_cfg = get_whatsapp_config(db, current_user.organization_id)
+    
+    has_smtp = bool(smtp_cfg.get("host") and smtp_cfg.get("user") and smtp_cfg.get("password"))
+    has_wa_api = bool(wa_cfg.get("phone_number_id") and wa_cfg.get("access_token"))
+    
+    return OutreachChannelStatusResponse(
+        email_smtp_ready=has_smtp,
+        email_smtp_host=smtp_cfg.get("host") if has_smtp else None,
+        whatsapp_api_ready=has_wa_api,
+        whatsapp_web_ready=True,
+        linkedin_ready=True
+    )
+
+
+@router.post("/send/email", response_model=OutreachActionResponse)
+async def dispatch_email(
+    req: SendEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    lead = db.query(Lead).filter(
+        Lead.id == req.lead_id,
+        Lead.organization_id == current_user.organization_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+        
+    try:
+        res = await send_email_outreach(
+            db=db,
+            user=current_user,
+            lead=lead,
+            subject=req.subject,
+            message_body=req.message_body,
+            recipient_email=req.recipient_email,
+            draft_id=req.draft_id
+        )
+        return OutreachActionResponse(
+            success=res["success"],
+            mode=res["mode"],
+            message=res["message"],
+            recipient=res.get("recipient"),
+            link=res.get("mailto_url"),
+            error=res.get("error")
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch email: {str(e)}")
+
+
+@router.post("/send/whatsapp", response_model=OutreachActionResponse)
+async def dispatch_whatsapp(
+    req: SendWhatsAppRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    lead = db.query(Lead).filter(
+        Lead.id == req.lead_id,
+        Lead.organization_id == current_user.organization_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+        
+    try:
+        res = await send_whatsapp_outreach(
+            db=db,
+            user=current_user,
+            lead=lead,
+            message_body=req.message_body,
+            recipient_phone=req.recipient_phone,
+            draft_id=req.draft_id
+        )
+        return OutreachActionResponse(
+            success=res["success"],
+            mode=res["mode"],
+            message=res["message"],
+            recipient=res.get("phone"),
+            link=res.get("wa_link"),
+            error=res.get("error")
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch WhatsApp: {str(e)}")
+
+
+@router.post("/send/linkedin", response_model=OutreachActionResponse)
+def dispatch_linkedin(
+    req: SendLinkedInRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    lead = db.query(Lead).filter(
+        Lead.id == req.lead_id,
+        Lead.organization_id == current_user.organization_id
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+        
+    try:
+        res = send_linkedin_outreach(
+            db=db,
+            user=current_user,
+            lead=lead,
+            message_body=req.message_body,
+            action_type=req.action_type,
+            draft_id=req.draft_id
+        )
+        return OutreachActionResponse(
+            success=res["success"],
+            mode=res["mode"],
+            message=res["message"],
+            recipient=lead.publicly_listed_contact_name or lead.company_name,
+            link=res.get("profile_url"),
+            error=None
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to log LinkedIn outreach: {str(e)}")

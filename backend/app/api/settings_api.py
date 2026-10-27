@@ -128,3 +128,45 @@ def save_integration(
         is_active=rec.is_active,
         masked_config=masked
     )
+
+
+class TestEmailRequest(BaseModel):
+    host: str
+    port: int = 587
+    user: str
+    password: str
+    from_email: str
+    test_recipient: str
+
+
+@router.post("/test-email")
+def test_smtp_connection(
+    req: TestEmailRequest,
+    current_user: User = Depends(get_current_user)
+):
+    import smtplib
+    import ssl
+    from email.mime.text import MIMEText
+
+    try:
+        msg = MIMEText("This is a verified test email from LeadGen Lite Outreach Engine.", "plain", "utf-8")
+        msg["Subject"] = "LeadGen Lite: SMTP Configuration Test"
+        msg["From"] = req.from_email or req.user
+        msg["To"] = req.test_recipient
+
+        if req.port == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(req.host, req.port, context=context, timeout=10.0) as server:
+                server.login(req.user, req.password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(req.host, req.port, timeout=10.0) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(req.user, req.password)
+                server.send_message(msg)
+
+        return {"success": True, "message": f"Test email sent successfully to {req.test_recipient}!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"SMTP handshake failed: {str(e)}")

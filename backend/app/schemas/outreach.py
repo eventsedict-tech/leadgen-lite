@@ -53,3 +53,42 @@ class CampaignResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SendEmailRequest(BaseModel):
+    lead_id: int
+    draft_id: Optional[int] = None
+    recipient_email: Optional[str] = None
+    subject: str
+    message_body: str
+
+
+class SendWhatsAppRequest(BaseModel):
+    lead_id: int
+    draft_id: Optional[int] = None
+    recipient_phone: Optional[str] = None
+    message_body: str
+
+
+class SendLinkedInRequest(BaseModel):
+    lead_id: int
+    draft_id: Optional[int] = None
+    action_type: str = "connection_note"  # connection_note, inmail, message
+    message_body: str
+
+
+class OutreachActionResponse(BaseModel):
+    success: bool
+    mode: str
+    message: str
+    recipient: Optional[str] = None
+    link: Optional[str] = None
+    error: Optional[str] = None
+
+
+class OutreachChannelStatusResponse(BaseModel):
+    email_smtp_ready: bool
+    email_smtp_host: Optional[str] = None
+    whatsapp_api_ready: bool
+    whatsapp_web_ready: bool = True
+    linkedin_ready: bool = True

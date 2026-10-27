@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, Globe, Mail, Phone, MapPin, Building,
   Sparkles, Check, Copy, ShieldCheck,
-  RefreshCw, CheckCircle2
+  RefreshCw, CheckCircle2, Send, ExternalLink, MessageSquare, Share2
 } from 'lucide-react';
 import { Lead, WebsiteAudit, LeadScoreResponse, OutreachDraft, CRMStage, VerificationStatus } from '../../types';
 import { api } from '../../services/api';
@@ -38,6 +38,7 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
   const [outreachChannel, setOutreachChannel] = useState<string>('cold_email');
   const [outreachLang, setOutreachLang] = useState<string>('en');
   const [copiedDraftId, setCopiedDraftId] = useState<number | null>(null);
+  const [dispatchingDraftId, setDispatchingDraftId] = useState<number | null>(null);
 
   // Task form state
   const [taskTitle, setTaskTitle] = useState('');
@@ -169,6 +170,83 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
       setDrafts(drafts.map(d => d.id === draftId ? updated : d));
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleSendEmail = async (draft: OutreachDraft) => {
+    setDispatchingDraftId(draft.id);
+    try {
+      const res = await api.sendEmailOutreach(
+        lead.id,
+        draft.subject_line || `Partnership Opportunity for ${currentLead.company_name}`,
+        draft.message_body,
+        currentLead.general_business_email || undefined,
+        draft.id
+      );
+      setActionMessage(res.message);
+      const updatedLead = await api.getLead(lead.id);
+      setCurrentLead(updatedLead);
+      loadDrafts();
+      onLeadUpdated();
+      if (res.mode !== 'smtp_sent' && res.link) {
+        window.location.href = res.link;
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to dispatch email');
+    } finally {
+      setDispatchingDraftId(null);
+      setTimeout(() => setActionMessage(null), 4000);
+    }
+  };
+
+  const handleSendWhatsApp = async (draft: OutreachDraft) => {
+    setDispatchingDraftId(draft.id);
+    try {
+      const res = await api.sendWhatsAppOutreach(
+        lead.id,
+        draft.message_body,
+        currentLead.public_business_phone || undefined,
+        draft.id
+      );
+      setActionMessage(res.message);
+      const updatedLead = await api.getLead(lead.id);
+      setCurrentLead(updatedLead);
+      loadDrafts();
+      onLeadUpdated();
+      if (res.link) {
+        window.open(res.link, '_blank');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to dispatch WhatsApp');
+    } finally {
+      setDispatchingDraftId(null);
+      setTimeout(() => setActionMessage(null), 4000);
+    }
+  };
+
+  const handleSendLinkedIn = async (draft: OutreachDraft) => {
+    setDispatchingDraftId(draft.id);
+    try {
+      navigator.clipboard.writeText(draft.message_body);
+      const res = await api.sendLinkedInOutreach(
+        lead.id,
+        draft.message_body,
+        draft.channel,
+        draft.id
+      );
+      setActionMessage(res.message + " (Pitch copied to clipboard!)");
+      const updatedLead = await api.getLead(lead.id);
+      setCurrentLead(updatedLead);
+      loadDrafts();
+      onLeadUpdated();
+      if (res.link) {
+        window.open(res.link, '_blank');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to log LinkedIn outreach');
+    } finally {
+      setDispatchingDraftId(null);
+      setTimeout(() => setActionMessage(null), 4000);
     }
   };
 
@@ -725,6 +803,64 @@ export const LeadDrawer: React.FC<LeadDrawerProps> = ({ lead, onClose, onLeadUpd
                         <span className="text-brand-700 font-medium">Service: {d.recommended_service}</span>
                         <span>•</span>
                         <span>Next: {d.suggested_next_action}</span>
+                      </div>
+
+                      {/* Outreach Dispatch Actions for Email, WhatsApp, and LinkedIn */}
+                      <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {d.is_sent ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Contacted / Dispatched</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Ready to dispatch</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {(d.channel === 'cold_email' || d.channel === 'follow_up_email') && (
+                            <>
+                              <button
+                                onClick={() => handleSendEmail(d)}
+                                disabled={dispatchingDraftId === d.id}
+                                className="px-3 py-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                <span>{dispatchingDraftId === d.id ? 'Sending...' : 'Send Email (SMTP)'}</span>
+                              </button>
+                              <a
+                                href={`mailto:${encodeURIComponent(currentLead.general_business_email || '')}?subject=${encodeURIComponent(d.subject_line || '')}&body=${encodeURIComponent(d.message_body)}`}
+                                className="px-2.5 py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Mail App</span>
+                              </a>
+                            </>
+                          )}
+
+                          {d.channel === 'whatsapp_draft' && (
+                            <button
+                              onClick={() => handleSendWhatsApp(d)}
+                              disabled={dispatchingDraftId === d.id}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>{dispatchingDraftId === d.id ? 'Dispatching...' : 'Send WhatsApp (Direct / API)'}</span>
+                            </button>
+                          )}
+
+                          {(d.channel === 'linkedin_note' || d.channel === 'linkedin_draft') && (
+                            <button
+                              onClick={() => handleSendLinkedIn(d)}
+                              disabled={dispatchingDraftId === d.id}
+                              className="px-3 py-1.5 bg-[#0a66c2] hover:bg-[#004182] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>{dispatchingDraftId === d.id ? 'Opening...' : 'Copy Pitch & Open LinkedIn'}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
