@@ -54,11 +54,22 @@ def test_crm_tasks_suppression_and_dashboard(client):
     updated_lead2 = client.get(f"/api/leads/{lead2['id']}", headers=headers).json()
     assert updated_lead2["crm_status"] == "Do Not Contact"
 
+    # Create an active pending task to test upcoming_follow_ups and is_overdue calculation
+    client.post("/api/tasks", json={
+        "lead_id": lead1["id"],
+        "title": "Pending SEO Demo Call",
+        "due_date": (datetime.utcnow() - timedelta(days=1)).isoformat(),
+        "notes": "Verify overdue calculation"
+    }, headers=headers)
+
     dash_res = client.get("/api/dashboard/metrics", headers=headers)
     assert dash_res.status_code == 200
-    metrics = dash_res.json()["metrics"]
+    dash_json = dash_res.json()
+    metrics = dash_json["metrics"]
     assert metrics["total_leads"] >= 2
-    distributions = dash_res.json()["distributions"]
+    assert len(dash_json["upcoming_follow_ups"]) >= 1
+    assert dash_json["upcoming_follow_ups"][0]["is_overdue"] is True
+    distributions = dash_json["distributions"]
     assert len(distributions["by_city"]) >= 1
 
     int_res = client.get("/api/settings/integrations", headers=headers)
@@ -66,3 +77,4 @@ def test_crm_tasks_suppression_and_dashboard(client):
     providers = [p["provider_type"] for p in int_res.json()]
     assert "google_places" in providers
     assert "smtp" in providers
+
