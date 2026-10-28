@@ -164,6 +164,54 @@ export interface OutreachChannelStatus {
   linkedin_ready: boolean;
 }
 
+export interface BulkOutreachItemResult {
+  lead_id: number;
+  company_name: string;
+  recipient?: string | null;
+  success: boolean;
+  mode: string;
+  message: string;
+  error?: string | null;
+}
+
+export interface BulkOutreachResponse {
+  total_requested: number;
+  processed_count: number;
+  success_count: number;
+  failed_count: number;
+  results: BulkOutreachItemResult[];
+}
+
+export interface Campaign {
+  id: number;
+  name: string;
+  channel: string;
+  status: string;
+  sending_limit_per_day: number;
+  recipient_count: number;
+  sent_count: number;
+  pending_count: number;
+  failed_count: number;
+  created_at: string;
+}
+
+export interface CampaignRecipient {
+  id: number;
+  lead_id: number;
+  company_name: string;
+  email?: string | null;
+  phone?: string | null;
+  status: string;
+  sent_at?: string | null;
+  error_message?: string | null;
+  subject?: string | null;
+  message_body?: string | null;
+}
+
+export interface CampaignDetail extends Campaign {
+  recipients: CampaignRecipient[];
+}
+
 export interface FollowUpTask {
   id: number;
   lead_id: number;

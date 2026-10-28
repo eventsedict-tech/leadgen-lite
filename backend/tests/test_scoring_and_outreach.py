@@ -174,3 +174,97 @@ def test_outreach_dispatch_integrations(client):
     assert tasks_res.status_code == 200
     assert len(tasks_res.json()) >= 1
     assert "LinkedIn" in tasks_res.json()[0]["title"]
+
+
+def test_bulk_outreach_and_campaigns(client):
+    reg = client.post("/api/auth/register", json={
+        "email": "bulk_tester@test.com",
+        "password": "Password123!",
+        "full_name": "Bulk Outreach Lead",
+        "organization_name": "Growth Agency Ltd"
+    })
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create 2 leads
+    res1 = client.post("/api/leads", json={
+        "company_name": "Alpha Corp",
+        "industry": "Consulting",
+        "city": "Mumbai",
+        "public_business_phone": "+91-99887-11223",
+        "general_business_email": "contact@alphacorp.test",
+        "publicly_listed_contact_name": "Aakash Mehta"
+    }, headers=headers)
+    assert res1.status_code == 201
+    l1 = res1.json()
+
+    res2 = client.post("/api/leads", json={
+        "company_name": "Beta Digital",
+        "industry": "Marketing",
+        "city": "Pune",
+        "public_business_phone": "+91-99887-44556",
+        "general_business_email": "contact@betadigital.test",
+        "publicly_listed_contact_name": "Bhavna Patel"
+    }, headers=headers)
+    assert res2.status_code == 201
+    l2 = res2.json()
+
+    lead_ids = [l1["id"], l2["id"]]
+
+    # 1. Bulk generate drafts
+    gen_res = client.post("/api/outreach/bulk/generate", json={
+        "lead_ids": lead_ids,
+        "channel": "cold_email",
+        "language": "en"
+    }, headers=headers)
+    assert gen_res.status_code == 200
+    gen_data = gen_res.json()
+    assert len(gen_data) == 2
+    assert gen_data[0]["channel"] == "cold_email"
+
+    # 2. Bulk send email
+    send_res = client.post("/api/outreach/bulk/send/email", json={
+        "lead_ids": lead_ids,
+        "channel": "cold_email",
+        "language": "en"
+    }, headers=headers)
+    assert send_res.status_code == 200
+    send_data = send_res.json()
+    assert send_data["total_requested"] == 2
+    assert send_data["processed_count"] == 2
+    assert send_data["success_count"] == 2
+
+    # Check that leads are now Contacted
+    check_l1 = client.get(f"/api/leads/{l1['id']}", headers=headers).json()
+    assert check_l1["crm_status"] == "Contacted"
+
+    # 3. Create Campaign
+    camp_res = client.post("/api/outreach/campaigns", json={
+        "name": "Q4 High Priority Outreach",
+        "channel": "cold_email",
+        "lead_ids": lead_ids,
+        "sending_limit_per_day": 50,
+        "language": "en"
+    }, headers=headers)
+    assert camp_res.status_code == 200
+    camp_data = camp_res.json()
+    assert camp_data["name"] == "Q4 High Priority Outreach"
+    assert camp_data["recipient_count"] == 2
+    camp_id = camp_data["id"]
+
+    # 4. List Campaigns
+    list_res = client.get("/api/outreach/campaigns", headers=headers)
+    assert list_res.status_code == 200
+    camps = list_res.json()
+    assert len(camps) >= 1
+    target = next((c for c in camps if c["id"] == camp_id), None)
+    assert target is not None
+    assert target["recipient_count"] == 2
+
+    # 5. Get Campaign Detail
+    detail_res = client.get(f"/api/outreach/campaigns/{camp_id}", headers=headers)
+    assert detail_res.status_code == 200
+    detail = detail_res.json()
+    assert detail["name"] == "Q4 High Priority Outreach"
+    assert len(detail["recipients"]) == 2
+

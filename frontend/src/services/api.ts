@@ -2,7 +2,8 @@ import {
   AuthToken, User, Lead, LeadListResponse, WebsiteAudit,
   LeadScoreResponse, OutreachDraft, FollowUpTask, SuppressionItem,
   ProviderInfo, DiscoveredCompany, DashboardData,
-  OutreachActionResponse, OutreachChannelStatus
+  OutreachActionResponse, OutreachChannelStatus,
+  BulkOutreachResponse, Campaign, CampaignDetail
 } from '../types';
 
 const API_BASE = '/api';
@@ -197,6 +198,42 @@ export const api = {
         action_type: actionType,
         message_body: messageBody
       })
+    });
+  },
+
+  // Bulk Outreach & Campaigns
+  async bulkGenerateDrafts(payload: { lead_ids: number[]; channel?: string; language?: string; use_llm?: boolean; custom_instructions?: string }): Promise<OutreachDraft[]> {
+    return request<OutreachDraft[]>('/outreach/bulk/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async bulkSendEmail(payload: { lead_ids: number[]; language?: string; subject_override?: string; message_body_override?: string }): Promise<BulkOutreachResponse> {
+    return request<BulkOutreachResponse>('/outreach/bulk/send/email', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async listCampaigns(): Promise<Campaign[]> {
+    return request<Campaign[]>('/outreach/campaigns');
+  },
+
+  async getCampaign(campaignId: number): Promise<CampaignDetail> {
+    return request<CampaignDetail>(`/outreach/campaigns/${campaignId}`);
+  },
+
+  async createCampaign(payload: { name: string; channel: string; lead_ids: number[]; language?: string; sending_limit_per_day?: number }): Promise<any> {
+    return request<any>('/outreach/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async startCampaign(campaignId: number): Promise<any> {
+    return request<any>(`/outreach/campaigns/${campaignId}/start`, {
+      method: 'POST'
     });
   },
 

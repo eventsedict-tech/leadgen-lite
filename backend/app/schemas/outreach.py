@@ -92,3 +92,53 @@ class OutreachChannelStatusResponse(BaseModel):
     whatsapp_api_ready: bool
     whatsapp_web_ready: bool = True
     linkedin_ready: bool = True
+
+
+class BulkGenerateOutreachRequest(BaseModel):
+    lead_ids: List[int]
+    channel: str = OutreachChannel.COLD_EMAIL.value
+    language: str = OutreachLanguage.EN.value
+    use_llm: bool = False
+    custom_instructions: Optional[str] = None
+
+
+class BulkOutreachItemResult(BaseModel):
+    lead_id: int
+    company_name: str
+    recipient: Optional[str] = None
+    success: bool
+    mode: str
+    message: str
+    error: Optional[str] = None
+
+
+class BulkOutreachResponse(BaseModel):
+    total_requested: int
+    processed_count: int
+    success_count: int
+    failed_count: int
+    results: List[BulkOutreachItemResult]
+
+
+class BulkSendEmailRequest(BaseModel):
+    lead_ids: List[int]
+    language: str = OutreachLanguage.EN.value
+    subject_override: Optional[str] = None
+    message_body_override: Optional[str] = None
+
+
+class CampaignDetailResponse(BaseModel):
+    id: int
+    name: str
+    channel: str
+    status: str
+    sending_limit_per_day: int
+    recipient_count: int
+    sent_count: int
+    pending_count: int
+    failed_count: int
+    created_at: datetime
+    recipients: List[dict]
+
+    model_config = ConfigDict(from_attributes=True)
+
